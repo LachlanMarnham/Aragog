@@ -1,13 +1,6 @@
-import os.path
-import sys
-
 import pytest
 
-base_path = os.path.abspath('..')
-aragog_app = os.path.join(base_path, 'app')
-sys.path.insert(0, aragog_app)
-
-from aragog import RobotRule
+from aragog import RobotRule, Aragog, RobotsParser
 
 
 class TestRobotRule:
@@ -33,10 +26,51 @@ class TestRobotRule:
     @pytest.mark.parametrize('raw_rule, url', (
             ('Allow: *imode', 'https://www.example.com/path_1/path_2/imode'),  # different scheme
             ('Allow: *imode', 'http://beta.example.com/path_1/path_2/imode'),  # Different subdomain prefix
-            ('Allow: *imode', 'http://example.com/path_1/path_2/imode'),  # No subdomain prefix
+            ('Allow: *imode', 'http://example.com/path_1/path_2/imode'),  # No sub-domain prefix
             ('Allow: *imode', 'http://www.example.com/path_1/path_2/imode2'),  # With trailing characters
     ))
     def test_rule_path_doesnt_match(self, raw_rule, url):
         rule = RobotRule.factory('http://www.example.com', raw_rule)
         assert not rule.match(url)
 
+    @pytest.mark.parametrize('rule_1, rule_2, result', (
+        ('Allow: aa', 'Allow: a', True),
+        ('Allow: aa', 'Allow: aa', True),
+        ('Allow: a', 'Allow: aa', False),
+        ('Disallow: aa', 'Disallow: a', True),
+        ('Disallow: aa', 'Disallow: aa', True),
+        ('Disallow: a', 'Disallow: aa', False),
+    ))
+    def test_rule_priority_comparison(self, rule_1, rule_2, result):
+        lhs = RobotRule.factory('http://www.example.com', rule_1)
+        rhs = RobotRule.factory('http://www.example.com', rule_2)
+        assert (lhs >= rhs) is result
+
+
+class TestRobotsParser:
+    """
+    For all of the tests in this class, we mock out the request to http://www.example.com/robots.txt to return
+    example_robots_txt
+    """
+    def test_robots_well_ordered(self, mocker, example_robots_txt):
+        RobotsParser._get_robots = mocker.MagicMock(return_value=example_robots_txt)
+        aragog = Aragog('www.example.com')
+        robots_list = aragog.robots
+
+        for i in range(1, len(robots_list)):
+            assert robots_list[i - 1] >= robots_list[i]
+
+    def test_found_five_relevant_rules(self, mocker, example_robots_txt):
+        RobotsParser._get_robots = mocker.MagicMock(return_value=example_robots_txt)
+        aragog = Aragog('www.example.com')
+        assert len(aragog.robots) == 5
+
+    def test_allowed_disallowed(self, mocker, example_robots_txt):
+        RobotsParser._get_robots = mocker.MagicMock(return_value=example_robots_txt)
+        aragog = Aragog('www.example.com')
+
+        # Should be 4 'Disallow: ...' rules
+        assert len([rule for rule in aragog.robots if rule.allow is False]) == 4
+
+        # Should be 1 'Allow: ...' rule
+        assert len([rule for rule in aragog.robots if rule.allow is True]) == 1
