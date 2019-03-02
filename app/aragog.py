@@ -1,4 +1,4 @@
-from typing import Pattern
+from typing import Pattern, List
 
 from abc import ABCMeta, abstractmethod
 
@@ -46,22 +46,22 @@ class RobotRule:
         """
         self._pattern = _convert_to_regex(root_url + raw_path)
         self.allow = allow
-        self._magnitude = len(raw_path)
+        self._priority = len(raw_path)
 
-    def __gt__(self, other: "RobotRule") -> bool:
+    def __ge__(self, other: "RobotRule") -> bool:
         """
         "At a group-member level, in particular for allow and disallow directives, the most specific rule based on the
         length of the [path] entry will trump the less specific (shorter) rule. The order of precedence for rules with
         wildcards is undefined."
         see https://developers.google.com/search/reference/robots_txt
 
-        With this in mind, we have defined self._magnitude to represent the length of the rule, and will compare them
+        With this in mind, we have defined self._priority to represent the length of the rule, and will compare them
         to see which rule wins.
         """
         if not isinstance(other, self.__class__):
-            raise TypeError(f"'>' not supported between instances of {other.__class__} and {self.__class__}.")
+            raise TypeError(f"'>=' not supported between instances of {other.__class__} and {self.__class__}.")
 
-        return self._magnitude > other._magnitude
+        return self._priority >= other._priority
 
     def match(self, string):
         return self._pattern.match(string)
@@ -77,6 +77,14 @@ class RobotRule:
             new_rule = cls(root_url=root_url, raw_path=disallow_match.group(1), allow=False)
 
         return new_rule
+
+    @property
+    def priority(self) -> int:
+        """
+        The 'priority' corresponds to the length of the path and is used for determining the order in which rules
+        should be applied
+        """
+        return self._priority
 
 
 class BaseRobotsParser(metaclass=ABCMeta):
@@ -120,13 +128,18 @@ class RobotsParser(BaseRobotsParser):
 
         return relevant_rules
 
+    @staticmethod
+    def _sort_robots_by_priority_decreasing(relevant_rules: List[RobotRule]):
+        relevant_rules.sort(key=lambda rule: rule.priority, reverse=True)
+
     def parse_robots(self):
         robots_rules = self._get_robots().splitlines()
         relevant_rules = self._filter_by_agent(robots_rules)
+        self._sort_robots_by_priority_decreasing(relevant_rules)
         return relevant_rules
 
 
-class BaseCrawler:
+class BaseClient:
     _url_template = '{}://{}/{}'
 
     def __init__(self, domain: str, schema: str) -> None:
@@ -145,13 +158,17 @@ class BaseCrawler:
         return self._get_path(path).text
 
 
-class Aragog(RobotsParser, BaseCrawler):
+class Aragog(RobotsParser, BaseClient):
     relevant_agents = ('*',)  # The user agents our crawler matches
 
     def __init__(self, domain: str, schema: str='http') -> None:
         super().__init__(domain, schema)
+        self.robots = self.parse_robots()
+
+    def crawl(self):
+        pass
 
 
 if __name__ == '__main__':
     aragog = Aragog('www.thomann.de')
-    aragog.parse_robots()
+    aragog.crawl()
