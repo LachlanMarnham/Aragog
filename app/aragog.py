@@ -1,3 +1,5 @@
+from typing import Pattern
+
 from abc import ABCMeta, abstractmethod
 
 import re
@@ -10,7 +12,7 @@ allow_pattern = re.compile(r'^Allow:\s+(.+)$')
 disallow_pattern = re.compile(r'^Disallow:\s+(.+)$')
 
 
-def _convert_to_regex(raw_pattern):
+def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
     """
     The robots.txt provides rules like:
 
@@ -46,7 +48,7 @@ class RobotRule:
         self.allow = allow
         self._magnitude = len(raw_path)
 
-    def __gt__(self, other):
+    def __gt__(self, other: "RobotRule") -> bool:
         """
         "At a group-member level, in particular for allow and disallow directives, the most specific rule based on the
         length of the [path] entry will trump the less specific (shorter) rule. The order of precedence for rules with
@@ -57,7 +59,7 @@ class RobotRule:
         to see which rule wins.
         """
         if not isinstance(other, self.__class__):
-            raise NotImplementedError("Can't compare those types")
+            raise TypeError(f"'>' not supported between instances of {other.__class__} and {self.__class__}.")
 
         return self._magnitude > other._magnitude
 
