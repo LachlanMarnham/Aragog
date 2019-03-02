@@ -39,3 +39,4 @@ class TestRobotRule:
     def test_rule_path_doesnt_match(self, raw_rule, url):
         rule = RobotRule.factory('http://www.example.com', raw_rule)
         assert not rule.match(url)
+
