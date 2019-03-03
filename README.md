@@ -21,7 +21,9 @@ found that the time taken to perform a request, parse the DOM, and extract all u
 There is a large variance (e.g. the homepage has a lot of links, and took around 900ms). Given that we spend <500ms 
 waiting on I/O (on average) and that our goal is throttle the request rate at 2 per second anyway, concurrency is probably
 not a top priority for a fist pass at this problem
-
+- A url can have the form base[?query][#fragment], the query and fragment do not *necessarily* define a unique page. 
+queries could indeed lead to a set of pages which are trivially different, and this set could be arbitrarily large!
+Nevertheless, the problem statement asks for the full set of urls, so we include them.
 
 ### TODO
 - Write an arbitrary robots.txt parser (I think I'm probably not *that* far off to be honest, but my unit tests were written
@@ -30,6 +32,14 @@ with the target domain in the back of my mind, so I'm potentially missing some t
 add up if I were crawling www.amazon.com instead of www.thomann.de!!!!). I'd potentially want this to be achieved with
 multiprocessing, so I could split the requests, parsing, queuing and storage into different microservices. This would
 be better for scalability if one of these constituents is less performant than the others, for example.
+- Think more carefully about queuing/stacking the urls. I've implemented a pretty naive approach where I add un-clicked
+urls to a set and just pop from that set from as long as it's non-empty. This isn't a great way to traverse a graph, but
+should do fine for a first pass. Ideally we'd want to use a priority queue which prioritizes paths according to their
+distance from root. Then we can implement depth-first-search on top of that. It seems like the root is going to contain 
+a large number of urls and that the further from root
+we get the more specific pages are going to get. If this **intuition** is correct, we can minimize the number of requests
+(the main constraint on performance!!!) by implementing a priority queue with a distance-from-root metric. As a heuristic
+I'm guessing that would be a nice approach at a general solution.
 
 ### Set up:
 Clone the repo
