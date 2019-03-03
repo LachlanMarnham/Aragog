@@ -3,6 +3,7 @@ from typing import Pattern, List
 from abc import ABCMeta, abstractmethod
 
 import re
+from bs4 import BeautifulSoup
 
 from requests import Session
 from requests.models import Response
@@ -10,6 +11,7 @@ from requests.models import Response
 user_agent_pattern = re.compile(r'^User-agent:\s+(.+)$')
 allow_pattern = re.compile(r'^Allow:\s+(.+)$')
 disallow_pattern = re.compile(r'^Disallow:\s+(.+)$')
+local_domain = re.compile('^(http|https)://www.thomann.de.*$')
 
 
 def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
@@ -106,7 +108,7 @@ class RobotsParser(BaseRobotsParser):
     """
 
     def _get_robots(self):
-        return self.get_content_as_text('robots.txt')
+        return self.get_content_as_text(self._website_root + 'robots.txt')
 
     def _filter_by_agent(self, robots_rules):
         """
@@ -123,7 +125,7 @@ class RobotsParser(BaseRobotsParser):
             elif in_relevant_group:
                 # We want to exclude empty lines, comments, site map etc
                 if any([pattern.match(rule) for pattern in (allow_pattern, disallow_pattern)]):
-                    new_rule = RobotRule.factory(self._domain, rule)
+                    new_rule = RobotRule.factory(self._website_root, rule)
                     relevant_rules.append(new_rule)
 
         return relevant_rules
@@ -140,35 +142,64 @@ class RobotsParser(BaseRobotsParser):
 
 
 class BaseClient:
-    _url_template = '{}://{}/{}'
+    _url_template = '{}/{}'
 
-    def __init__(self, domain: str, schema: str) -> None:
+    def __init__(self, website_root: str, schema: str) -> None:
         # Instantiate a TCP pool to reduce syn/syn-ack overhead
         self._session = Session()
-        self._schema = schema
-        self._domain = domain
+        self._website_root = website_root
 
     def _get(self, url: str) -> Response:
         return self._session.get(url)
 
-    def _get_path(self, path: str) -> Response:
-        return self._get(self._url_template.format(self._schema, self._domain, path))
+    # def _get_path(self, path: str) -> Response:
+    #     return self._get(self._url_template.format(self._website_root, path))
 
-    def get_content_as_text(self, path: str) -> str:
-        return self._get_path(path).text
+    def get_content_as_text(self, url: str) -> str:
+        return self._get(url).text
 
 
 class Aragog(RobotsParser, BaseClient):
     relevant_agents = ('*',)  # The user agents our crawler matches
 
-    def __init__(self, domain: str, schema: str='http') -> None:
-        super().__init__(domain, schema)
+    def __init__(self, website_root: str, schema: str='http') -> None:
+        super().__init__(website_root, schema)
         self.robots = self.parse_robots()
+        self._crawled_urls = set()
+        self._scheduled_urls = set()
+
+    def get_child_urls_from_parent(self, parent_url):
+        page_contents = self.get_content_as_text(parent_url)
+        parsed_contents = BeautifulSoup(page_contents, 'html.parser')
+        a_tags = parsed_contents.find_all('a')
+        hrefs = {a_tag.get('href') for a_tag in a_tags}
+
+        # Make sure the href is a non-empty string. Could probably simplify this somewhat by making the lambda
+        # simply check if the href has a truthy boolean value, but I just want to make sure there isn't some edge case
+        # I didn't account for basically...
+        urls = filter(lambda href: isinstance(href, str) and href is not '', hrefs)
+        local_urls = set()
+        for url in urls:
+            if local_domain.match(url):
+               local_urls.add(set)
+
+        return local_urls
+
+    def schedule_urls(self, *urls):
+        for url in urls:
+            self._scheduled_urls.add(url)
 
     def crawl(self):
-        pass
+        self.schedule_urls(self._website_root)
+        while self._scheduled_urls:
+            next_url = self._scheduled_urls.pop()
+            scraped_urls = self.get_child_urls_from_parent(next_url)
+            self._crawled_urls.add(next_url)
+            urls_to_schedule = scraped_urls - self._crawled_urls
+
+
 
 
 if __name__ == '__main__':
-    aragog = Aragog('www.thomann.de')
+    aragog = Aragog('http://www.thomann.de')
     aragog.crawl()
