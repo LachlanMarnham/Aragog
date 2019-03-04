@@ -10,9 +10,11 @@ from requests import Session
 from requests.exceptions import SSLError
 from requests.models import Response
 
+# TODO quite a bit of the parsing I implemented can be avoided by urllib.robotparser (which I was unaware of...)
 user_agent_pattern = re.compile(r'^User-agent:\s+(.+)$')
 allow_pattern = re.compile(r'^Allow:\s+(.+)$')
 disallow_pattern = re.compile(r'^Disallow:\s+(.+)$')
+valid_url_pattern = re.compile(r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-\._~:/?#[\]@!$&'\(\)\*\+,;=.]+$")
 
 
 def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
@@ -179,6 +181,15 @@ class BaseClient:
         return self._get(url).text
 
 
+def href_is_valid_url(href):
+    """
+    First make sure the href is a non-empty string. This is necessary because there are quite a few <a> tags with no
+    href attribute. If that test pasts, explicitly match against valid_url_pattern. This avoids non-url hrefs, e.g.,
+    phone numbers, email addresses and so on
+    """
+    return isinstance(href, str) and href != '' and valid_url_pattern.match(href)
+
+
 class Aragog(RobotsParser, BaseClient):
     relevant_agents = ('*',)  # The user agents our crawler matches
 
@@ -200,7 +211,7 @@ class Aragog(RobotsParser, BaseClient):
         # Make sure the href is a non-empty string. Could probably simplify this somewhat by making the lambda
         # simply check if the href has a truth-y boolean value, but I just want to make sure there isn't some edge case
         # I didn't account for basically...
-        urls = set(filter(lambda href: isinstance(href, str) and href is not '', hrefs))
+        urls = set(filter(href_is_valid_url, hrefs))
 
         # Some of the tags will have relative hrefs, like <a href="data.html">...</a>. We want to handle this by
         # doing a join with the parent
