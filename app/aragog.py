@@ -35,6 +35,15 @@ def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
     return re.compile('^' + pattern + '$')
 
 
+def output_scraped_url(url: str) -> None:
+    """
+    Ok...this isn't very exciting. I've just wrapped the print so the code is a bit more fragmented. In this case
+    the idea is that instead of printing our urls to stout (not very useful!) we can instead log them or write them to
+    a DB by switch out just one function.
+    """
+    print(url)
+
+
 class RobotRule:
     def __init__(self, root_url: str, raw_path: str, allow: bool) -> None:
         """
@@ -144,7 +153,7 @@ class RobotsParser(BaseRobotsParser):
 class BaseClient:
     _url_template = '{}/{}'
 
-    def __init__(self, website_root: str, schema: str) -> None:
+    def __init__(self, website_root: str) -> None:
         # Instantiate a TCP pool to reduce syn/syn-ack overhead
         self._session = Session()
         self._website_root = website_root
@@ -162,11 +171,12 @@ class BaseClient:
 class Aragog(RobotsParser, BaseClient):
     relevant_agents = ('*',)  # The user agents our crawler matches
 
-    def __init__(self, website_root: str, schema: str='http') -> None:
-        super().__init__(website_root, schema)
+    def __init__(self, website_root: str) -> None:
+        super().__init__(website_root)
         self.robots = self.parse_robots()
-        self._crawled_urls = set()
-        self._scheduled_urls = set()
+        self._crawled_urls = set()  # The pages we already visited
+        self._seen_urls = set()  # The pages we have found links to, but don't necessarily want to visit
+        self._scheduled_urls = set()  # The pages we intend to visit
 
     def get_child_urls_from_parent(self, parent_url):
         page_contents = self.get_content_as_text(parent_url)
@@ -177,13 +187,8 @@ class Aragog(RobotsParser, BaseClient):
         # Make sure the href is a non-empty string. Could probably simplify this somewhat by making the lambda
         # simply check if the href has a truthy boolean value, but I just want to make sure there isn't some edge case
         # I didn't account for basically...
-        urls = filter(lambda href: isinstance(href, str) and href is not '', hrefs)
-        local_urls = set()
-        for url in urls:
-            if local_domain.match(url):
-               local_urls.add(set)
-
-        return local_urls
+        urls = set(filter(lambda href: isinstance(href, str) and href is not '', hrefs))
+        return urls
 
     def schedule_urls(self, *urls):
         for url in urls:
@@ -193,13 +198,35 @@ class Aragog(RobotsParser, BaseClient):
         self.schedule_urls(self._website_root)
         while self._scheduled_urls:
             next_url = self._scheduled_urls.pop()
+
             scraped_urls = self.get_child_urls_from_parent(next_url)
             self._crawled_urls.add(next_url)
-            urls_to_schedule = scraped_urls - self._crawled_urls
+            new_urls = scraped_urls - self._seen_urls
 
+            # Output all of the urls we haven't seen before, whether they are local or not
+            for new_url in new_urls:
+                output_scraped_url(new_url)
 
+            # Schedule all the new_urls we just scraped if 1) they are from the local domain, and 2) they follow the
+            # rules from the robots.txt
+            local_urls = set()
+            for url in new_urls:
+                if local_domain.match(url):
+                    local_urls.add(url)
+
+            for url in local_urls:
+                for robot_rule in self.robots:
+                    if robot_rule.match(url):
+                        if robot_rule.allow:
+                            self.schedule_urls(url)
+                        else:
+                            break
+                # We get here if we didn't match any robots.txts rules. Assume we can scrape the page
+                self.schedule_urls(url)
 
 
 if __name__ == '__main__':
-    aragog = Aragog('http://www.thomann.de')
+    # Let's use http instead of https... I don't think (?) it will make any difference, there will be less performance
+    # overhead at TCP connection time
+    aragog = Aragog('http://www.thomann.de/')
     aragog.crawl()
