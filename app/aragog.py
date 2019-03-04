@@ -1,4 +1,5 @@
 from typing import Pattern, List, Set
+from urllib.parse import urljoin, urlparse
 
 from abc import ABCMeta, abstractmethod
 
@@ -6,6 +7,7 @@ import re
 from bs4 import BeautifulSoup
 
 from requests import Session
+from requests.exceptions import SSLError
 from requests.models import Response
 
 user_agent_pattern = re.compile(r'^User-agent:\s+(.+)$')
@@ -34,22 +36,25 @@ def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
     return re.compile('^' + pattern + '$')
 
 
-def output_scraped_urls(urls: Set[str]) -> None:
-    """
-    Ok...this isn't very exciting. I've just wrapped the print so the code is a bit more fragmented. In this case
-    the idea is that instead of printing our urls to stout (not very useful!) we can instead log them or write them to
-    a DB by switch out just one function.
-    """
-    for url in urls:
-        print(url)
-
-
 def remove_non_local_urls(urls: Set[str], local_domain: Pattern[str]) -> Set[str]:
     local_urls = set()
     for url in urls:
         if local_domain.match(url):
             local_urls.add(url)
     return local_urls
+
+
+def _handle_relative_paths(parent_url: str, child_urls: Set[str]):
+    fully_qualified_urls = set()
+    for child_url in child_urls:
+        parsed_child = urlparse(child_url)
+        if not parsed_child.netloc:
+            # To trigger this condition, our child_url *probably* has the form 'doc.html'. It's also possible the url
+            # is broken.
+            fully_qualified_urls.add(urljoin(parent_url, child_url))
+        else:
+            fully_qualified_urls.add(child_url)
+    return fully_qualified_urls
 
 
 class RobotRule:
@@ -152,15 +157,16 @@ class RobotsParser(BaseRobotsParser):
         relevant_rules.sort(key=lambda rule: rule.priority, reverse=True)
 
     def parse_robots(self):
-        robots_rules = self._get_robots().splitlines()
+        try:
+            robots_rules = self._get_robots().splitlines()
+        except SSLError:  # Not every website has a robots.txt file...
+            robots_rules = []
         relevant_rules = self._filter_by_agent(robots_rules)
         self._sort_robots_by_priority_decreasing(relevant_rules)
         return relevant_rules
 
 
 class BaseClient:
-    _url_template = '{}/{}'
-
     def __init__(self, website_root: str) -> None:
         # Instantiate a TCP pool to reduce syn/syn-ack overhead
         self._session = Session()
@@ -168,9 +174,6 @@ class BaseClient:
 
     def _get(self, url: str) -> Response:
         return self._session.get(url)
-
-    # def _get_path(self, path: str) -> Response:
-    #     return self._get(self._url_template.format(self._website_root, path))
 
     def get_content_as_text(self, url: str) -> str:
         return self._get(url).text
@@ -195,10 +198,14 @@ class Aragog(RobotsParser, BaseClient):
         hrefs = {a_tag.get('href') for a_tag in a_tags}
 
         # Make sure the href is a non-empty string. Could probably simplify this somewhat by making the lambda
-        # simply check if the href has a truthy boolean value, but I just want to make sure there isn't some edge case
+        # simply check if the href has a truth-y boolean value, but I just want to make sure there isn't some edge case
         # I didn't account for basically...
         urls = set(filter(lambda href: isinstance(href, str) and href is not '', hrefs))
-        return urls
+
+        # Some of the tags will have relative hrefs, like <a href="data.html">...</a>. We want to handle this by
+        # doing a join with the parent
+        fully_qualified_urls = _handle_relative_paths(parent_url, urls)
+        return fully_qualified_urls
 
     def schedule_url(self, url: str) -> None:
         self._scheduled_urls.add(url)
@@ -214,16 +221,35 @@ class Aragog(RobotsParser, BaseClient):
             # We get here if we didn't match any robots.txt rules. Assume we can scrape the page
             self.schedule_url(url)
 
+    def choose_url_and_scrape(self):
+        next_url = self._scheduled_urls.pop()
+        scraped_urls = self.get_child_urls_from_parent(next_url)
+        self._crawled_urls.add(next_url)
+        return scraped_urls - self._seen_urls
+
+    def _mark_urls_as_seen(self, *urls):
+        for url in urls:
+            self._seen_urls.add(url)
+
+    def output_scraped_urls(self, urls: Set[str]) -> None:
+        """
+        Ok...this isn't very exciting. I've just wrapped the call to print so the code is a bit more fragmented.
+        In this case the idea is that instead of printing our urls to stout (not very useful!) we can instead log them
+        or write them to a DB by switching out just one method.
+        We don't log any of the urls that we have seen before.
+        """
+        for url in urls.difference(self._seen_urls):
+            print(url)
+
     def crawl(self):
         self.schedule_url(self._website_root)
         while self._scheduled_urls:
-            next_url = self._scheduled_urls.pop()
-            scraped_urls = self.get_child_urls_from_parent(next_url)
-            self._crawled_urls.add(next_url)
-            new_urls = scraped_urls - self._seen_urls
+            # choose_url_and_scrape() will only return urls we haven't seen yet
+            new_urls = self.choose_url_and_scrape()
 
             # Output all of the urls we haven't seen before, whether they are local or not
-            output_scraped_urls(new_urls)
+            self.output_scraped_urls(new_urls)
+            self._mark_urls_as_seen(*new_urls)
 
             # Schedule all the new_urls we just scraped if 1) they are from the local domain, and 2) they follow the
             # rules from the robots.txt
