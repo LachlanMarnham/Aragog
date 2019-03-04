@@ -1,6 +1,8 @@
+from time import sleep, time
 from typing import Pattern, List, Set
 from urllib.parse import urljoin, urlparse
 
+import click
 from abc import ABCMeta, abstractmethod
 
 import re
@@ -14,7 +16,7 @@ from requests.models import Response
 user_agent_pattern = re.compile(r'^User-agent:\s+(.+)$')
 allow_pattern = re.compile(r'^Allow:\s+(.+)$')
 disallow_pattern = re.compile(r'^Disallow:\s+(.+)$')
-valid_url_pattern = re.compile(r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-\._~:/?#[\]@!$&'\(\)\*\+,;=.]+$")
+valid_url_pattern = re.compile(r"^(?:http(s)?://)?[\w.-]+(?:\.[\w.-]+)+[\w\-._~:/?#[\]@!$&'\(\)\*\+,;=]+$")
 
 
 def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
@@ -168,12 +170,30 @@ class RobotsParser(BaseRobotsParser):
         return relevant_rules
 
 
+class RateLimit:
+
+    def __init__(self, *, max_rate: int) -> None:
+        self.time_between_actions = 1 / max_rate
+        self.last_action_time = time() - self.time_between_actions
+
+    def __call__(self, wrapped_function):
+        def wrapper(*args, **kwargs):
+            wait_for_time = self.last_action_time + self.time_between_actions - time()
+            if wait_for_time > 0:
+                sleep(wait_for_time)
+            self.last_action_time = time()
+            return wrapped_function(*args, **kwargs)
+
+        return wrapper
+
+
 class BaseClient:
     def __init__(self, website_root: str) -> None:
         # Instantiate a TCP pool to reduce syn/syn-ack overhead
         self._session = Session()
         self._website_root = website_root
 
+    @RateLimit(max_rate=2)
     def _get(self, url: str) -> Response:
         return self._session.get(url)
 
@@ -181,7 +201,7 @@ class BaseClient:
         return self._get(url).text
 
 
-def href_is_valid_url(href):
+def href_is_valid_url(href: str):
     """
     First make sure the href is a non-empty string. This is necessary because there are quite a few <a> tags with no
     href attribute. If that test pasts, explicitly match against valid_url_pattern. This avoids non-url hrefs, e.g.,
@@ -267,6 +287,15 @@ class Aragog(RobotsParser, BaseClient):
             local_urls = remove_non_local_urls(new_urls, self._website_domain_pattern)
 
             self.schedule_allowed_urls(local_urls)
+
+
+@click.command()
+@click.option('--plot_output', is_flag=True, default=False, help='Dump the crawled domain in images')
+def hello(plot_output):
+    if plot_output:
+        print('flag is true')
+    else:
+        print('flag is false')
 
 
 if __name__ == '__main__':
