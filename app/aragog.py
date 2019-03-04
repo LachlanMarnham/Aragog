@@ -1,4 +1,4 @@
-from typing import Pattern, List
+from typing import Pattern, List, Set
 
 from abc import ABCMeta, abstractmethod
 
@@ -11,7 +11,6 @@ from requests.models import Response
 user_agent_pattern = re.compile(r'^User-agent:\s+(.+)$')
 allow_pattern = re.compile(r'^Allow:\s+(.+)$')
 disallow_pattern = re.compile(r'^Disallow:\s+(.+)$')
-local_domain = re.compile('^(http|https)://www.thomann.de.*$')
 
 
 def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
@@ -42,6 +41,14 @@ def output_scraped_url(url: str) -> None:
     a DB by switch out just one function.
     """
     print(url)
+
+
+def remove_non_local_urls(urls: Set[str], local_domain: Pattern[str]) -> Set[str]:
+    local_urls = set()
+    for url in urls:
+        if local_domain.match(url):
+            local_urls.add(url)
+    return local_urls
 
 
 class RobotRule:
@@ -171,7 +178,9 @@ class BaseClient:
 class Aragog(RobotsParser, BaseClient):
     relevant_agents = ('*',)  # The user agents our crawler matches
 
-    def __init__(self, website_root: str) -> None:
+    def __init__(self, website_domain: str, schema: str='https://') -> None:
+        website_root = schema + website_domain
+        self._website_domain_pattern = re.compile('^(http|https)://{}.*$'.format(website_domain))
         super().__init__(website_root)
         self.robots = self.parse_robots()
         self._crawled_urls = set()  # The pages we already visited
@@ -198,7 +207,6 @@ class Aragog(RobotsParser, BaseClient):
         self.schedule_urls(self._website_root)
         while self._scheduled_urls:
             next_url = self._scheduled_urls.pop()
-
             scraped_urls = self.get_child_urls_from_parent(next_url)
             self._crawled_urls.add(next_url)
             new_urls = scraped_urls - self._seen_urls
@@ -209,10 +217,7 @@ class Aragog(RobotsParser, BaseClient):
 
             # Schedule all the new_urls we just scraped if 1) they are from the local domain, and 2) they follow the
             # rules from the robots.txt
-            local_urls = set()
-            for url in new_urls:
-                if local_domain.match(url):
-                    local_urls.add(url)
+            local_urls = remove_non_local_urls(new_urls, self._website_domain_pattern)
 
             for url in local_urls:
                 for robot_rule in self.robots:
@@ -221,12 +226,10 @@ class Aragog(RobotsParser, BaseClient):
                             self.schedule_urls(url)
                         else:
                             break
-                # We get here if we didn't match any robots.txts rules. Assume we can scrape the page
+                # We get here if we didn't match any robots.txt rules. Assume we can scrape the page
                 self.schedule_urls(url)
 
 
 if __name__ == '__main__':
-    # Let's use http instead of https... I don't think (?) it will make any difference, there will be less performance
-    # overhead at TCP connection time
-    aragog = Aragog('http://www.thomann.de/')
+    aragog = Aragog('www.thomann.de/')
     aragog.crawl()
