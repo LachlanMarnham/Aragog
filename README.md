@@ -40,6 +40,8 @@ a large number of urls and that the further from root
 we get the more specific pages are going to get. If this **intuition** is correct, we can minimize the number of requests
 (the main constraint on performance!!!) by implementing a priority queue with a distance-from-root metric. As a heuristic
 I'm guessing that would be a nice approach at a general solution.
+- **I just realised urllib.robotparser ships with the python standard library.** Damn... 
+Probably want to use that in v2!
 
 ### Set up:
 Clone the repo
