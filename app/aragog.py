@@ -34,13 +34,14 @@ def _convert_to_regex(raw_pattern: str) -> Pattern[str]:
     return re.compile('^' + pattern + '$')
 
 
-def output_scraped_url(url: str) -> None:
+def output_scraped_urls(urls: Set[str]) -> None:
     """
     Ok...this isn't very exciting. I've just wrapped the print so the code is a bit more fragmented. In this case
     the idea is that instead of printing our urls to stout (not very useful!) we can instead log them or write them to
     a DB by switch out just one function.
     """
-    print(url)
+    for url in urls:
+        print(url)
 
 
 def remove_non_local_urls(urls: Set[str], local_domain: Pattern[str]) -> Set[str]:
@@ -199,12 +200,22 @@ class Aragog(RobotsParser, BaseClient):
         urls = set(filter(lambda href: isinstance(href, str) and href is not '', hrefs))
         return urls
 
-    def schedule_urls(self, *urls):
-        for url in urls:
-            self._scheduled_urls.add(url)
+    def schedule_url(self, url: str) -> None:
+        self._scheduled_urls.add(url)
+
+    def schedule_allowed_urls(self, local_urls):
+        for url in local_urls:
+            for robot_rule in self.robots:
+                if robot_rule.match(url):
+                    if robot_rule.allow:
+                        self.schedule_url(url)
+                    else:
+                        break
+            # We get here if we didn't match any robots.txt rules. Assume we can scrape the page
+            self.schedule_url(url)
 
     def crawl(self):
-        self.schedule_urls(self._website_root)
+        self.schedule_url(self._website_root)
         while self._scheduled_urls:
             next_url = self._scheduled_urls.pop()
             scraped_urls = self.get_child_urls_from_parent(next_url)
@@ -212,22 +223,13 @@ class Aragog(RobotsParser, BaseClient):
             new_urls = scraped_urls - self._seen_urls
 
             # Output all of the urls we haven't seen before, whether they are local or not
-            for new_url in new_urls:
-                output_scraped_url(new_url)
+            output_scraped_urls(new_urls)
 
             # Schedule all the new_urls we just scraped if 1) they are from the local domain, and 2) they follow the
             # rules from the robots.txt
             local_urls = remove_non_local_urls(new_urls, self._website_domain_pattern)
 
-            for url in local_urls:
-                for robot_rule in self.robots:
-                    if robot_rule.match(url):
-                        if robot_rule.allow:
-                            self.schedule_urls(url)
-                        else:
-                            break
-                # We get here if we didn't match any robots.txt rules. Assume we can scrape the page
-                self.schedule_urls(url)
+            self.schedule_allowed_urls(local_urls)
 
 
 if __name__ == '__main__':
