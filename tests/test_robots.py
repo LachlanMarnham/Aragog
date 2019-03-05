@@ -54,7 +54,7 @@ class TestRobotsParser:
     """
     def test_robots_well_ordered(self, mocker, example_robots_txt):
         RobotsParser._get_robots = mocker.MagicMock(return_value=example_robots_txt)
-        aragog = Aragog('www.example.com')
+        aragog = Aragog('www.example.com', 'http://', plot_output=False)
         robots_list = aragog.robots
 
         for i in range(1, len(robots_list)):
@@ -62,12 +62,12 @@ class TestRobotsParser:
 
     def test_found_five_relevant_rules(self, mocker, example_robots_txt):
         RobotsParser._get_robots = mocker.MagicMock(return_value=example_robots_txt)
-        aragog = Aragog('www.example.com')
+        aragog = Aragog('www.example.com', 'http://', plot_output=False)
         assert len(aragog.robots) == 5
 
     def test_allowed_disallowed(self, mocker, example_robots_txt):
         RobotsParser._get_robots = mocker.MagicMock(return_value=example_robots_txt)
-        aragog = Aragog('www.example.com')
+        aragog = Aragog('www.example.com', 'http://', plot_output=False)
 
         # Should be 4 'Disallow: ...' rules
         assert len([rule for rule in aragog.robots if rule.allow is False]) == 4
