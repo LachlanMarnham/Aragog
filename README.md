@@ -82,6 +82,10 @@ One can get help in the usual way:
 (venv) [you@localhost: app]$ python run_aragog.py --help
 ```
 ### Run the tests
-TODO
+```console
+(venv) [you@localhost: app]$ cd ../tests
+(venv) [you@localhost: tests]$ py.test
+```
+### Bonus gif
 
 ![follow the spiders](https://media.giphy.com/media/axWsKEl0Nrppm/giphy.gif)
