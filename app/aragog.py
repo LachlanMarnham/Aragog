@@ -72,7 +72,13 @@ class Aragog(RobotsParser, BaseClient):
         next_url = self._scheduled_urls.pop()
         scraped_urls = self.get_child_urls_from_parent(next_url)
         self._crawled_urls.add(next_url)
+        if self._plot_handler is not None:
+            self._add_new_edges(parent=next_url, children=scraped_urls)
         return scraped_urls - self._seen_urls
+
+    def _add_new_edges(self, parent, children):
+        for child in children:
+            self._plot_handler.draw_updated_graph(parent, child)
 
     def _mark_urls_as_seen(self, *urls):
         for url in urls:

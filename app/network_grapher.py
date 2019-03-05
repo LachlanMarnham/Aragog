@@ -2,7 +2,6 @@ import os
 import random
 
 import pylab
-from matplotlib.pyplot import pause
 import networkx as nx
 
 
@@ -17,8 +16,6 @@ class NetworkGraphHandler:
 
         self._graph = nx.Graph()
         self._figure_number = 0
-        pylab.ion() # interactive mode
-        pylab.show() # show the figures
 
     def _add_nodes(self, edge):
         for node in edge:
@@ -38,8 +35,6 @@ class NetworkGraphHandler:
         new_figure = self._get_fig(edge)
         new_figure.canvas.draw()
         pylab.draw()
-        pause(0.2)
         pylab.savefig(self._output_directory + f'{self._figure_number}'.zfill(5) + self._file_ext, type='png')
         pylab.close(new_figure)
         self._figure_number += 1
-
