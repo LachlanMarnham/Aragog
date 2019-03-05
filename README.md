@@ -54,11 +54,11 @@ Create a virtual environment, e.g....
 ```console
 [you@localhost: Aragog]$ virtualenv --python=python3.6 venv
 ```
-...and activate it
+... and activate it...
 ```console
 [you@localhost: Aragog]$ source venv/bin/activate
 ```
-Install the packages
+... and install the packages into it
 ```console
 (venv) [you@localhost: Aragog]$ pip install -r requirements.txt
 ```
