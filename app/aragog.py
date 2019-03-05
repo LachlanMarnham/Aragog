@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from requests import Session, Response
 
 from helpers import RateLimit, href_is_valid_url, handle_relative_paths, remove_non_local_urls
+from network_grapher import NetworkGraphHandler
 from robots_parser import RobotsParser
 
 
@@ -33,6 +34,9 @@ class Aragog(RobotsParser, BaseClient):
         self._crawled_urls = set()  # The pages we already visited
         self._seen_urls = set()  # The pages we have found links to, but don't necessarily want to visit
         self._scheduled_urls = set()  # The pages we intend to visit
+
+        # Triggered by the --plot_output flag at runtime
+        self._plot_handler = NetworkGraphHandler() if plot_output else None
 
     def get_child_urls_from_parent(self, parent_url):
         page_contents = self.get_content_as_text(parent_url)
