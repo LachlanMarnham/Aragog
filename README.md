@@ -88,4 +88,4 @@ One can get help in the usual way:
 ```
 ### Bonus gif
 
-![follow the spiders](https://media.giphy.com/media/axWsKEl0Nrppm/giphy.gif)
+![follow the spiders](crawler.gif)
