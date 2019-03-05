@@ -1,6 +1,7 @@
 import pytest
 
-from run_aragog import RobotRule, Aragog, RobotsParser
+from aragog import Aragog
+from robots_parser import RobotRule, RobotsParser
 
 
 class TestRobotRule:
