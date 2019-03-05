@@ -87,5 +87,11 @@ One can get help in the usual way:
 (venv) [you@localhost: tests]$ py.test
 ```
 ### Bonus gif
-
+Running the code with the `--plot_output` flag set (see above) instantiates a `NetworkGraphHandler`. This maintains a
+graph of our website, where nodes represent the pages Aragog has scraped and edges represent the links between them. After
+the graph has been updated `N` times, it creates a figure and saves it as ./figures/*.png. The number of figures very
+quickly spirals out of control, so I chose `N=25` so we are getting chunked updates. Currently the `NetworkGraphHandler`,
+ adds every node it finds. The result is a quickly-saturated plot which lacks interesting internal structure.
+ If we only added those nodes at the target domain it would be much more interesting...
+ ... Anyway, here's the result: 
 ![follow the spiders](crawler.gif)
