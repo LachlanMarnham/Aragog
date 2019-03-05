@@ -1,7 +1,6 @@
-import re
 from typing import List
-
 from abc import ABCMeta, abstractmethod
+
 from requests.exceptions import SSLError
 
 from helpers import convert_to_regex, allow_pattern, disallow_pattern, user_agent_pattern
@@ -83,7 +82,7 @@ class RobotsParser(BaseRobotsParser):
     def _get_robots(self):
         return self.get_content_as_text(self.website_root + 'robots.txt')
 
-    def _filter_by_agent(self, robots_rules):
+    def _filter_by_agent(self, robots_rules: List[str]) -> List[str]:
         """
         Get the set of rules in the scope of our user agent. The user-agents we match are defined by
         self.relevant_agents

@@ -1,6 +1,5 @@
 from time import sleep, time
 from urllib.parse import urlparse, urljoin
-
 import re
 from typing import Pattern, Set
 
@@ -12,7 +11,20 @@ user_agent_pattern = re.compile(r'^User-agent:\s+(.+)$')
 
 
 class RateLimit:
+    """
+    This is a decorator to throttle any function call. It should be noticed that if it wraps two different functions
+    *it will throttle them separately*. E.g.
 
+        @RateLimit(max_rate=2)
+        def get(...):
+            # do stuff
+
+        @RateLimit(max_rate=2)
+        def post(...):
+            # do stuff
+
+    would result in a situation where we are making up to 4 requests per second to the server
+    """
     def __init__(self, *, max_rate: int) -> None:
         self.time_between_actions = 1 / max_rate
         self.last_action_time = time() - self.time_between_actions
@@ -28,13 +40,13 @@ class RateLimit:
         return wrapper
 
 
-def href_is_valid_url(href: str):
+def href_is_valid_url(href: str) -> bool:
     """
     First make sure the href is a non-empty string. This is necessary because there are quite a few <a> tags with no
     href attribute. If that test pasts, explicitly match against valid_url_pattern. This avoids non-url hrefs, e.g.,
     phone numbers, email addresses and so on
     """
-    return isinstance(href, str) and href != '' and valid_url_pattern.match(href)
+    return bool(isinstance(href, str) and href != '' and valid_url_pattern.match(href))
 
 
 def convert_to_regex(raw_pattern: str) -> Pattern[str]:
@@ -66,7 +78,17 @@ def remove_non_local_urls(urls: Set[str], local_domain: Pattern[str]) -> Set[str
     return local_urls
 
 
-def handle_relative_paths(parent_url: str, child_urls: Set[str]):
+def handle_relative_paths(parent_url: str, child_urls: Set[str]) -> Set[str]:
+    """
+    When we scrape parent_url, say https://www.example.com/doc.html, we may get tags of the form:
+
+    <a href="some_other_doc.html"></a>
+
+    This function can take the parent_url and the child url (in this example some_other_doc.html and produce the
+    result:
+
+    https://www.example.com/some_other_doc.html
+    """
     fully_qualified_urls = set()
     for child_url in child_urls:
         parsed_child = urlparse(child_url)

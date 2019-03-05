@@ -1,7 +1,7 @@
 from typing import Set
 import re
-from bs4 import BeautifulSoup
 
+from bs4 import BeautifulSoup
 from requests import Session, Response
 
 from helpers import RateLimit, href_is_valid_url, handle_relative_paths, remove_non_local_urls
@@ -38,7 +38,7 @@ class Aragog(RobotsParser, BaseClient):
         # Triggered by the --plot_output flag at runtime
         self._plot_handler = NetworkGraphHandler() if plot_output else None
 
-    def get_child_urls_from_parent(self, parent_url):
+    def get_child_urls_from_parent(self, parent_url: str) -> Set[str]:
         page_contents = self.get_content_as_text(parent_url)
         parsed_contents = BeautifulSoup(page_contents, 'html.parser')
         a_tags = parsed_contents.find_all('a')
@@ -57,7 +57,7 @@ class Aragog(RobotsParser, BaseClient):
     def schedule_url(self, url: str) -> None:
         self._scheduled_urls.add(url)
 
-    def schedule_allowed_urls(self, local_urls):
+    def schedule_allowed_urls(self, local_urls: Set[str]) -> None:
         for url in local_urls:
             for robot_rule in self.robots:
                 if robot_rule.match(url):
@@ -94,7 +94,7 @@ class Aragog(RobotsParser, BaseClient):
         for url in urls.difference(self._seen_urls):
             print(url)
 
-    def crawl(self):
+    def crawl(self) -> None:
         self.schedule_url(self.website_root)
         while self._scheduled_urls:
             # choose_url_and_scrape() will only return urls we haven't seen yet
