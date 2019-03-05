@@ -213,7 +213,7 @@ def href_is_valid_url(href: str):
 class Aragog(RobotsParser, BaseClient):
     relevant_agents = ('*',)  # The user agents our crawler matches
 
-    def __init__(self, website_domain: str, schema: str='https://') -> None:
+    def __init__(self, website_domain: str, schema: str, plot_output: bool) -> None:
         website_root = schema + website_domain
         self._website_domain_pattern = re.compile('^(http|https)://{}.*$'.format(website_domain))
         super().__init__(website_root)
@@ -290,14 +290,13 @@ class Aragog(RobotsParser, BaseClient):
 
 
 @click.command()
+@click.option('--domain', default='www.thomann.de/', help='The root of the website you want to crawl')
+@click.option('--schema', default='https://', help='The url schema (http:// or https://)')
 @click.option('--plot_output', is_flag=True, default=False, help='Dump the crawled domain in images')
-def hello(plot_output):
-    if plot_output:
-        print('flag is true')
-    else:
-        print('flag is false')
+def main(domain, schema, plot_output):
+    aragog = Aragog(website_domain=domain, schema=schema, plot_output=plot_output)
+    aragog.crawl()
 
 
 if __name__ == '__main__':
-    aragog = Aragog('www.thomann.de/')
-    aragog.crawl()
+    main()

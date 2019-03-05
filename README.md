@@ -60,12 +60,27 @@ Create a virtual environment, e.g....
 ```
 Install the packages
 ```console
-[you@localhost: Aragog]$ pip install -r requirements.txt
+(venv) [you@localhost: Aragog]$ pip install -r requirements.txt
 ```
 
 ### Run the code
-TODO
-
+To run the code against the default domain and schema (https://www.thomann.de/):
+```console
+(venv) [you@localhost: Aragog]$ cd app
+(venv) [you@localhost: app]$ python run_aragog.py
+```
+This is the only domain that I've tested in detail, but in principle a suitably time-wealthy user could run:
+```console
+(venv) [you@localhost: app]$ python run_aragog.py --schema https:// --domain www.amazon.com/
+```
+To generate the images used in the gif (see below), run:
+```console
+(venv) [you@localhost: app]$ python run_aragog.py --plot_output
+```
+One can get help in the usual way:
+```console
+(venv) [you@localhost: app]$ python run_aragog.py --help
+```
 ### Run the tests
 TODO
 
