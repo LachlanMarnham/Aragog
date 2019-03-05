@@ -33,15 +33,14 @@ add up if I were crawling www.amazon.com instead of www.thomann.de!!!!). I'd pot
 multiprocessing, so I could split the requests, parsing, queuing and storage into different microservices. This would
 be better for scalability if one of these constituents is less performant than the others, for example.
 - Think more carefully about queuing/stacking the urls. I've implemented a pretty naive approach where I add un-clicked
-urls to a set and just pop from that set from as long as it's non-empty. This isn't a great way to traverse a graph, but
+urls to a set and just pop from that set for as long as it's non-empty. This isn't a great way to traverse a graph, but
 should do fine for a first pass. Ideally we'd want to use a priority queue which prioritizes paths according to their
 distance from root. Then we can implement depth-first-search on top of that. It seems like the root is going to contain 
 a large number of urls and that the further from root
 we get the more specific pages are going to get. If this **intuition** is correct, we can minimize the number of requests
 (the main constraint on performance!!!) by implementing a priority queue with a distance-from-root metric. As a heuristic
 I'm guessing that would be a nice approach at a general solution.
-- **I just realised urllib.robotparser ships with the python standard library.** Damn... 
-Probably want to use that in v2!
+- **I just realised urllib.robotparser ships with the python standard library.** Oops... 
 
 ### Set up:
 Clone the repo
@@ -90,7 +89,7 @@ One can get help in the usual way:
 Running the code with the `--plot_output` flag set (see above) instantiates a `NetworkGraphHandler`. This maintains a
 graph of our website, where nodes represent the pages Aragog has scraped and edges represent the links between them. After
 the graph has been updated `N` times, it creates a figure and saves it as ./figures/*.png. The number of figures very
-quickly spirals out of control, so I chose `N=25` so we are getting chunked updates. Currently the `NetworkGraphHandler`,
+quickly spirals out of control, so I chose `N=25` to minimize the updates. Currently the `NetworkGraphHandler`,
  adds every node it finds. The result is a quickly-saturated plot which lacks interesting internal structure.
  If we only added those nodes at the target domain it would be much more interesting...
  ... Anyway, here's the result: 
